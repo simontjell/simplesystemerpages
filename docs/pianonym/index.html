@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>PensionsInfo CPR-anonymisering</title>
+    <style>
+        :root {
+            --bg: #eef2f5;
+            --card-bg: rgba(255, 255, 255, 0.7);
+            --border: rgba(255, 255, 255, 0.45);
+            --accent: #005bbb;
+            --accent-light: #e7f2ff;
+            --radius: 18px;
+            --shadow: 0 8px 28px rgba(0,0,0,0.15);
+            --font: system-ui, -apple-system, sans-serif;
+            --mono: Menlo, Consolas, monospace;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--font);
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 900px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow);
+            border-radius: var(--radius);
+            padding: 40px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+            color: #222;
+        }
+
+        .subheader {
+            margin: 18px 0 28px 0;
+            padding: 18px 22px;
+            background: rgba(255, 255, 255, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.38);
+            backdrop-filter: blur(14px);
+            border-radius: var(--radius);
+            box-shadow: 0 4px 18px rgba(0,0,0,0.09);
+        }
+
+        .subheader-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 6px;
+        }
+
+        .subheader-warning {
+            font-size: 15px;
+            font-weight: 500;
+            color: #b00000;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        input[type="file"],
+        input[type="text"],
+        button {
+            font-family: var(--font);
+            font-size: 16px;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+        }
+
+        input[type="text"] {
+            padding: 10px 14px;
+            width: 260px;
+            border-radius: var(--radius);
+            border: 1px solid #ccc;
+            background: white;
+            transition: 0.15s;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--accent-light);
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 12px 20px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.15s;
+        }
+        button:hover {
+            background: #004a98;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fafafa;
+            border-radius: var(--radius);
+            font-family: var(--mono);
+            font-size: 14px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+        }
+
+        #preview {
+            width: 100%;
+            height: 280px;
+            font-family: var(--mono);
+            font-size: 13px;
+            padding: 15px;
+            background: white;
+            border-radius: var(--radius);
+            border: 1px solid #ddd;
+            white-space: pre;
+        }
+
+        #downloadLink {
+            margin-top: 20px;
+            display: inline-block;
+            padding: 12px 20px;
+            background: var(--accent);
+            color: white;
+            border-radius: var(--radius);
+            text-decoration: none;
+            font-weight: 600;
+            transition: 0.15s;
+        }
+        #downloadLink:hover {
+            background: #004a98;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <h1>PensionsInfo – CPR-anonymisering</h1>
+
+        <div class="subheader">
+            <div class="subheader-title">
+                Erstat alle forekomster af et CPR-nummer i en PensionsInfo XML-fil med et nyt CPR-nummer
+            </div>
+            <div class="subheader-warning">
+                Alt foregår i din egen browser, så der sendes ikke data til en server
+            </div>
+        </div>
+
+        <div class="section">
+            <label for="xmlFile">1. Vælg PensionsInfo XML-fil</label>
+            <input type="file" id="xmlFile" accept=".xml,text/xml">
+        </div>
+
+        <div class="section">
+            <label for="newCpr">2. Indtast nyt CPR-nummer</label>
+            <input type="text" id="newCpr" maxlength="10" placeholder="0101901234">
+        </div>
+
+        <div class="section">
+            <button id="anonymizeBtn">3. Anonymisér</button>
+        </div>
+
+        <pre id="status"></pre>
+
+        <div class="section">
+            <label for="preview">4. Forhåndsvisning</label>
+            <textarea id="preview" readonly></textarea>
+        </div>
+
+        <a id="downloadLink">Download anonymiseret fil</a>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById("xmlFile");
+        const newCprInput = document.getElementById("newCpr");
+        const anonymizeBtn = document.getElementById("anonymizeBtn");
+        const statusEl = document.getElementById("status");
+        const previewEl = document.getElementById("preview");
+        const downloadLink = document.getElementById("downloadLink");
+
+        let blobUrl = null;
+
+        function setStatus(msg) {
+            statusEl.textContent = msg;
+        }
+
+        anonymizeBtn.onclick = () => {
+            setStatus("");
+            previewEl.value = "";
+            downloadLink.style.display = "none";
+
+            const file = fileInput.files[0];
+            if (!file) {
+                setStatus("Fejl: Vælg først en XML-fil.");
+                return;
+            }
+
+            const newCpr = newCprInput.value.trim();
+            if (!/^[0-9]{10}$/.test(newCpr)) {
+                setStatus("Fejl: CPR skal være 10 cifre.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = evt => {
+                const xmlText = evt.target.result;
+
+                let parser = new DOMParser();
+                let doc = parser.parseFromString(xmlText, "application/xml");
+
+                let cprNode = doc.getElementsByTagName("CprNr")[0];
+                if (!cprNode) {
+                    setStatus("Fejl: <CprNr> ikke fundet i XML.");
+                    return;
+                }
+
+                const originalCpr = cprNode.textContent.trim();
+
+                const newXml = xmlText.split(originalCpr).join(newCpr);
+
+                previewEl.value = newXml;
+
+                if (blobUrl) URL.revokeObjectURL(blobUrl);
+                const blob = new Blob([newXml], { type: "application/xml" });
+                blobUrl = URL.createObjectURL(blob);
+
+                downloadLink.href = blobUrl;
+                downloadLink.download = file.name.replace(/\.xml$/i, "_anonymiseret.xml");
+                downloadLink.style.display = "inline-block";
+
+                const regexEscaped = originalCpr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                const countBefore = (xmlText.match(new RegExp(regexEscaped, "g")) || []).length;
+                const countAfter = (newXml.match(new RegExp(regexEscaped, "g")) || []).length;
+
+                setStatus(
+                    "Fundet CPR: " + originalCpr + "\n" +
+                    "Erstattet med: " + newCpr + "\n" +
+                    "Forekomster før: " + countBefore + "\n" +
+                    "Forekomster efter: " + countAfter
+                );
+            };
+
+            reader.onerror = () => {
+                setStatus("Fejl: Kunne ikke læse filen.");
+            };
+
+            reader.readAsText(file, "utf-8");
+        };
+    </script>
+</body>
+</html>
